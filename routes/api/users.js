@@ -2,6 +2,8 @@ const express = require("express");
 const { response, request } = require("express");
 const gravatar = require("gravatar");
 const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const config = require("config");
 const routes = express.Router();
 // ...rest of the initial code omitted for simplicity.
 const { check, validationResult } = require("express-validator");
@@ -54,8 +56,21 @@ routes.post(
       user.password = await bcrypt.hash(password, salt);
       await user.save();
 
-      console.log(request.body);
-      response.send("users test");
+      const payload = {
+        user: {
+          id: user.id,
+        },
+      };
+      console.log(payload);
+      jwt.sign(
+        payload,
+        config.get("jwtSecret"),
+        { expiresIn: 360000 },
+        (err, token) => {
+          if (err) throw err;
+          res.json({ token });
+        }
+      );
     } catch (error) {
       console.error(error);
       response.status(500).send("Failed");
