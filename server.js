@@ -8,7 +8,7 @@ connectDB();
 //middleware
 app.use(express.json({ extended: false }));
 
-app.get("/", (req, res) => res.send("dsdsd"));
+app.get("/", (req, res) => res.send("Jobs-Zim"));
 
 //define routes
 app.use("/api/users", require("./routes/api/users"));
