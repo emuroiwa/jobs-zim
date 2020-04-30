@@ -15,12 +15,10 @@ const userModel = require("../../models/User");
 //@access   Public
 routes.post(
 	"/",
+	//validation middleware
 	[
-		// name must be an string
 		check("name", "Name is required").notEmpty(),
-		//email
 		check("email").isEmail(),
-		// password must be at least 5 chars long
 		check("password").isLength({ min: 5 }),
 	],
 	//callback fxn
@@ -56,11 +54,6 @@ routes.post(
 			user.password = await bcrypt.hash(password, salt);
 			await user.save();
 
-			const payload = {
-				user: {
-					id: user.id,
-				},
-			};
 			response.status(200).send("Success");
 		} catch (error) {
 			console.error(error);
