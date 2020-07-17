@@ -1,10 +1,7 @@
 const express = require("express");
+const axios = require("axios");
+var crypto = require("crypto");
 const router = express.Router();
-const { check, validationResult } = require("express-validator");
-const auth = require("../../middleware/auth");
-
-const Post = require("../../models/Post");
-const User = require("../../models/User");
 
 // @route    POST api/posts
 // @desc     Create a post
@@ -19,180 +16,101 @@ router.get("/notify", async (req, res) => {
   }
 });
 
-// @route    GET api/posts
-// @desc     Get all posts
-// @access   Private
-router.get("/", auth, async (req, res) => {
+router.get("/form", async (req, res) => {
+  var html = "";
+  html += "<body>";
+  html += "<form action='/thank'  method='post' name='form1'>";
+  html += "Name:</p><input type= 'text' name='name'>";
+  html += "Email:</p><input type='text' name='email'>";
+  html += "address:</p><input type='text' name='address'>";
+  html += "Mobile number:</p><input type='text' name='mobilno'>";
+  html += "<input type='submit' value='submit'>";
+  html += "<INPUT type='reset'  value='reset'>";
+  html += "</form>";
+  html += "</body>";
+  res.send(html);
+});
+
+router.get("/", async (req, res) => {
   try {
-    const posts = await Post.find().sort({ date: -1 });
-    res.json(posts);
+    var myData = [];
+    // Merchant details
+    myData["merchant_id"] = "10018579";
+    myData["merchant_key"] = "861ou4eazj11v";
+    myData["return_url"] = "http://www.localhost/payfast/it.php";
+    myData["cancel_url"] = "http://www.localhost/payfast/it.php";
+    myData["notify_url"] = "http://www.localhost/payfast/it.php";
+    // Buyer details
+    myData["name_first"] = "First Name";
+    myData["name_last"] = "Last Name";
+    myData["email_address"] = "emuroiwa@gmail.com";
+    myData["m_payment_id"] = "8542";
+    myData["amount"] = "10.00";
+    myData["item_name"] = "Item Name";
+    myData["item_description"] = "Item Description";
+    myData["custom_int1"] = "9586";
+    myData["custom_str1"] =
+      "custom string is passed along with transaction to notify_url page";
+
+    // Create parameter string
+    var pfOutput = "";
+    for (var key in myData) {
+      var value = myData[key];
+      if (value !== "") {
+        pfOutput += key + "=" + encodeURIComponent(value.trim()) + "&";
+      }
+    }
+
+    // Remove last ampersand
+    var getString = pfOutput.slice(0, -1);
+    //Uncomment the next line and add a passphrase if there is one set on the account
+    var passPhrase = "0914002797Ernest";
+    if (typeof passPhrase !== "undefined") {
+      getString += "&passphrase=" + encodeURIComponent(passPhrase.trim());
+    }
+
+    getString =
+      "merchant_id=10018579&merchant_key=861ou4eazj11v&return_url=http%3A%2F%2Fwww.localhost%2Fpayfast%2Fit.php&cancel_url=http%3A%2F%2Fwww.localhost%2Fpayfast%2Fit.php&notify_url=http%3A%2F%2Fwww.localhost%2Fpayfast%2Fit.php&name_first=First+Name&name_last=Last+Name&email_address=emuroiwa%40gmail.com&m_payment_id=8542&amount=10.00&item_name=Item+Name&item_description=Item+Description&custom_int1=9586&custom_str1=custom+string+is+passed+along+with+transaction+to+notify_url+page&passphrase=0914002797Ernest";
+    var hash = crypto.createHash("md5").update(getString).digest("hex");
+    myData["signature"] = hash;
+    // If in testing mode make use of either sandbox.payfast.co.za or www.payfast.co.za
+
+    var testingMode = true;
+    var pfHost = testingMode ? "sandbox.payfast.co.za" : "www.payfast.co.za";
+    var htmlForm = "";
+    htmlForm =
+      '<form action="https://' + pfHost + '/eng/process" method="post">';
+    for (var key in myData) {
+      var value = myData[key];
+      if (value !== "") {
+        // pfOutput += key + "=" + encodeURI(value.trim()) + "&";
+        htmlForm +=
+          key +
+          '<input name="' +
+          key +
+          '" type="text" value="' +
+          value.trim() +
+          '" /><br>';
+      }
+    }
+
+    htmlForm += '<input type="submit" value="Pay Now" /></form>';
+
+    res.send(htmlForm);
+    // var pfHost = testingMode ? "sandbox.payfast.co.za" : "www.payfast.co.za";
+
+    // axios
+    //   .post("https://" + pfHost + "/eng/process", JSON.stringify(myData))
+    //   .then((res) => {
+    //     console.log(`statusCode: ${res.statusCode}`);
+    //     console.log(res);
+    //   })
+    //   .catch((error) => {
+    //     console.error(error);
+    //   });
   } catch (err) {
     console.error(err.message);
     res.status(500).send("Server Error");
-  }
-});
-
-// @route    GET api/posts/:id
-// @desc     Get post by ID
-// @access   Private
-router.get("/:id", auth, async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id);
-
-    // Check for ObjectId format and post
-    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/) || !post) {
-      return res.status(404).json({ msg: "Post not found" });
-    }
-
-    res.json(post);
-  } catch (err) {
-    console.error(err.message);
-
-    res.status(500).send("Server Error");
-  }
-});
-
-// @route    DELETE api/posts/:id
-// @desc     Delete a post
-// @access   Private
-router.delete("/:id", auth, async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id);
-
-    // Check for ObjectId format and post
-    if (!req.params.id.match(/^[0-9a-fA-F]{24}$/) || !post) {
-      return res.status(404).json({ msg: "Post not found" });
-    }
-
-    // Check user
-    if (post.user.toString() !== req.user.id) {
-      return res.status(401).json({ msg: "User not authorized" });
-    }
-
-    await post.remove();
-
-    res.json({ msg: "Post removed" });
-  } catch (err) {
-    console.error(err.message);
-
-    res.status(500).send("Server Error");
-  }
-});
-
-// @route    PUT api/posts/like/:id
-// @desc     Like a post
-// @access   Private
-router.put("/like/:id", auth, async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id);
-
-    // Check if the post has already been liked
-    if (post.likes.some((like) => like.user.toString() === req.user.id)) {
-      return res.status(400).json({ msg: "Post already liked" });
-    }
-
-    post.likes.unshift({ user: req.user.id });
-
-    await post.save();
-
-    return res.json(post.likes);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server Error");
-  }
-});
-
-// @route    PUT api/posts/unlike/:id
-// @desc     Unlike a post
-// @access   Private
-router.put("/unlike/:id", auth, async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id);
-
-    // Check if the post has already been liked
-    if (!post.likes.some((like) => like.user.toString() === req.user.id)) {
-      return res.status(400).json({ msg: "Post has not yet been liked" });
-    }
-
-    // remove the like
-    post.likes = post.likes.filter(
-      ({ user }) => user.toString() !== req.user.id
-    );
-
-    await post.save();
-
-    return res.json(post.likes);
-  } catch (err) {
-    console.error(err.message);
-    res.status(500).send("Server Error");
-  }
-});
-
-// @route    POST api/posts/comment/:id
-// @desc     Comment on a post
-// @access   Private
-router.post(
-  "/comment/:id",
-  [auth, [check("text", "Text is required").not().isEmpty()]],
-  async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-      return res.status(400).json({ errors: errors.array() });
-    }
-
-    try {
-      const user = await User.findById(req.user.id).select("-password");
-      const post = await Post.findById(req.params.id);
-
-      const newComment = {
-        text: req.body.text,
-        name: user.name,
-        avatar: user.avatar,
-        user: req.user.id,
-      };
-
-      post.comments.unshift(newComment);
-
-      await post.save();
-
-      res.json(post.comments);
-    } catch (err) {
-      console.error(err.message);
-      res.status(500).send("Server Error");
-    }
-  }
-);
-
-// @route    DELETE api/posts/comment/:id/:comment_id
-// @desc     Delete comment
-// @access   Private
-router.delete("/comment/:id/:comment_id", auth, async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id);
-
-    // Pull out comment
-    const comment = post.comments.find(
-      (comment) => comment.id === req.params.comment_id
-    );
-    // Make sure comment exists
-    if (!comment) {
-      return res.status(404).json({ msg: "Comment does not exist" });
-    }
-    // Check user
-    if (comment.user.toString() !== req.user.id) {
-      return res.status(401).json({ msg: "User not authorized" });
-    }
-
-    post.comments = post.comments.filter(
-      ({ id }) => id !== req.params.comment_id
-    );
-
-    await post.save();
-
-    return res.json(post.comments);
-  } catch (err) {
-    console.error(err.message);
-    return res.status(500).send("Server Error");
   }
 });
 
